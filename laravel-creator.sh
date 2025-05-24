@@ -8,10 +8,8 @@ readonly YELLOW='\033[0;33m'
 readonly BLUE='\033[0;34m'
 readonly NC='\033[0m'
 
-readonly RAW_REPO_URL="https://raw.githubusercontent.com/jnariai/laravel-creator/refs/heads/main"
-readonly TEMP_IMAGE_NAME="laravel-creator"
-readonly TEMP_DOCKERFILE="${RAW_REPO_URL}/Dockerfile.laravel-creator"
-readonly ENTRYPOINT_SCRIPT="${RAW_REPO_URL}/docker-entrypoint.sh"
+readonly REMOTE_REPO_URL="https://raw.githubusercontent.com/jnariai/laravel-creator/refs/heads/main"
+readonly TMP_IMAGE_NAME="laravel-creator"
 
 function check_dependency() {
     if ! command -v "$1" &>/dev/null; then
@@ -37,7 +35,9 @@ function print_header() {
 
 function cleanup() {
     echo -e "${BLUE}Cleaning up temporary files...${NC}"
-    docker rmi "${TEMP_IMAGE_NAME}" >/dev/null 2>&1 || true
+    docker rmi "${TMP_IMAGE_NAME}" >/dev/null 2>&1 || true
+    rm -rf tmp-laravel-creator
+    echo -e "${GREEN}Cleanup completed.${NC}"
 }
 
 function handle_error() {
@@ -79,32 +79,56 @@ function normalize_to_domain() {
 function setup_docker_environment() {
     local project_dir="$1"
     local domain="$2"
-    local docker_template_dir="${project_dir}/docker/development"
-    local dockerfile_app="${RAW_REPO_URL}/docker/development/Dockerfile.app"
-    local dockerfile_sqlite="${RAW_REPO_URL}/docker/development/Dockerfile.sqlite"
-    local entrypoint_script="${RAW_REPO_URL}/docker/development/entrypoint.sh"
-    local nginx_conf="${RAW_REPO_URL}/docker/development/nginx.conf"
+    local docker_dev_dir="${project_dir}/docker/development"
+    local remote_docker_dev="${REMOTE_REPO_URL}/docker/development"
+    local dockerfile_app="${remote_docker_dev}/Dockerfile.app"
+    local dockerfile_sqlite="${remote_docker_dev}/Dockerfile.sqlite"
+    local entrypoint_script="${remote_docker_dev}/entrypoint.sh"
+    local nginx_conf="${remote_docker_dev}/nginx.conf"
 
     echo -e "${BLUE}Setting up Docker environment...${NC}"
 
-    mkdir -p "$docker_template_dir"
+    mkdir -p "$docker_dev_dir"
 
     echo -e "${BLUE}Copying Docker templates...${NC}"
-    curl -sSL "$dockerfile_app" -o "$docker_template_dir/Dockerfile.app"
-    curl -sSL "$dockerfile_sqlite" -o "$docker_template_dir/Dockerfile.sqlite"
-    curl -sSL "$entrypoint_script" -o "$docker_template_dir/entrypoint.sh"
-    curl -sSL "$nginx_conf" -o "$docker_template_dir/nginx.conf"
+    curl -sSL "$dockerfile_app" -o "$docker_dev_dir/Dockerfile.app"
+    curl -sSL "$dockerfile_sqlite" -o "$docker_dev_dir/Dockerfile.sqlite"
+    curl -sSL "$entrypoint_script" -o "$docker_dev_dir/entrypoint.sh"
+    curl -sSL "$nginx_conf" -o "$docker_dev_dir/nginx.conf"
 
-    chmod 755 -R "$docker_template_dir"
+    chmod 755 -R "$docker_dev_dir"
 
-    curl -sSL "${RAW_REPO_URL}/docker-compose.development.yml" -o "$project_dir/docker-compose.development.yml"
+    curl -sSL "${remote_docker_dev}/docker-compose.development.yml" -o "$project_dir/docker-compose.development.yml"
 
     echo -e "${BLUE}Configuring environment for ${domain}...${NC}"
 
-    sed -i 's/{{APP_DOMAIN}}/'$domain'/g' "$docker_template_dir/nginx.conf"
+    sed -i 's/{{APP_DOMAIN}}/'$domain'/g' "$docker_dev_dir/nginx.conf"
     sed -i 's/{{APP_DOMAIN}}/'$domain'/g' "$project_dir/docker-compose.development.yml"
 
     echo -e "${GREEN}Docker environment configured for $domain${NC}"
+}
+
+function setup_tmp_laravel_creator() {
+    local remote_repo_url="${REMOTE_REPO_URL}/build"
+    local tmp_laravel_creator_dir="tmp-laravel-creator"
+
+    mkdir -p tmp-laravel-creator
+    curl -sSL "${remote_repo_url}/docker-entrypoint.sh" -o tmp-laravel-creator/docker-entrypoint.sh
+    chmod +x tmp-laravel-creator/docker-entrypoint.sh
+    curl -sSL "${remote_repo_url}/Dockerfile.laravel-creator" -o tmp-laravel-creator/Dockerfile.laravel-creator
+
+    echo -e "${BLUE}Building temporary Docker image...${NC}"
+    docker build -t "${TMP_IMAGE_NAME}" \
+        --build-arg ENTRYPOINT_SCRIPT="${tmp_laravel_creator_dir}/docker-entrypoint.sh" \
+        -f "${tmp_laravel_creator_dir}/Dockerfile.laravel-creator" .
+
+    USER_ID=$(id -u)
+    GROUP_ID=$(id -g)
+
+    echo -e "${YELLOW}Initializing Laravel project... This might take a few minutes.${NC}"
+    docker run --rm -it \
+        -v "$(pwd):/app" \
+        "${TMP_IMAGE_NAME}" bash -c "laravel new ${project_name}"
 }
 
 trap 'handle_error $LINENO' ERR
@@ -142,20 +166,8 @@ fi
 
 echo -e "${BLUE}Preparing Docker environment...${NC}"
 
-echo -e "${BLUE}Building temporary Docker image...${NC}"
-docker build -t "${TEMP_IMAGE_NAME}" \
-    --build-arg ENTRYPOINT_SCRIPT="${ENTRYPOINT_SCRIPT}" \
-    -f "${TEMP_DOCKERFILE}" .
+setup_tmp_laravel_creator
 
-USER_ID=$(id -u)
-GROUP_ID=$(id -g)
-
-echo -e "${YELLOW}Initializing Laravel project... This might take a few minutes.${NC}"
-docker run --rm -it \
-    -v "$(pwd):/app" \
-    "${TEMP_IMAGE_NAME}" bash -c "laravel new ${project_name}"
-
-echo -e "${BLUE}Cleaning up temporary Docker image...${NC}"
 cleanup
 
 if [ -d "${project_name}" ]; then
@@ -168,7 +180,7 @@ if [ -d "${project_name}" ]; then
 
     setup_docker_environment "${project_name}" "${domain_name}"
 
-    echo -e "${GREEN}Do you want to run the project right now? (y/n):${NC} \c"
+    echo -e "${BLUE}Do you want to run the project right now? (y/n):${NC} \c"
     read confirm
 
     if [[ $confirm != "y" && $confirm != "Y" ]]; then
