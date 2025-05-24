@@ -1,0 +1,51 @@
+FROM php:8.4-cli-alpine
+
+RUN apk add --no-cache \
+    nodejs \
+    npm \
+    unzip \
+    libzip-dev \
+    postgresql-dev \
+    mysql-client \
+    freetype-dev \
+    libjpeg-turbo-dev \
+    libpng-dev \
+    icu-dev \
+    oniguruma-dev \
+    libxml2-dev \
+    git \
+    bash
+
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg && \
+    docker-php-ext-install \
+        zip \
+        pdo \
+        pdo_mysql \
+        pdo_pgsql \
+        bcmath \
+        exif \
+        pcntl \
+        intl \
+        opcache \
+        mbstring \
+        xml \
+        gd
+
+COPY --from=composer:2.8.8 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /app
+
+RUN composer global require laravel/installer && \
+    export PATH="$PATH:/root/.composer/vendor/bin" && \
+    ln -sf /root/.composer/vendor/bin/laravel /usr/local/bin/laravel && \
+    chmod +x /root/.composer/vendor/bin/laravel /usr/local/bin/laravel && \
+    chmod -R 755 /root/.composer
+
+ENV PATH="/root/.composer/vendor/bin:${PATH}"
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+RUN which laravel && ls -la $(which laravel)
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

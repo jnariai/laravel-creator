@@ -1,0 +1,15 @@
+FROM alpine:3.21
+
+RUN apk add --no-cache sqlite sqlite-dev
+
+RUN mkdir -p /var/lib/sqlite
+
+WORKDIR /var/lib/sqlite
+
+RUN touch database.sqlite && chmod 777 database.sqlite && \
+    sqlite3 database.sqlite "PRAGMA journal_mode=WAL;" && \
+    chown -R 1000:1000 /var/lib/sqlite
+
+VOLUME /var/lib/sqlite
+
+CMD ["tail", "-f", "/dev/null"]

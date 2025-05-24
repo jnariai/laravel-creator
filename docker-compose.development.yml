@@ -1,0 +1,51 @@
+services:
+    app-dev:
+        build:
+            context: .
+            dockerfile: ./docker/development/Dockerfile.app
+        restart: unless-stopped
+        ports:
+            - "9000:9000"
+            - "8000:8000"
+            - "5173:5173"
+        depends_on:
+            - db-dev
+        volumes:
+            - ./:/usr/share/nginx/html
+            - ./database:/var/lib/sqlite
+        environment:
+            DB_CONNECTION: sqlite
+            DB_DATABASE: /var/lib/sqlite/database.sqlite
+            DB_FOREIGN_KEYS: true
+        networks:
+            - app-dev-network
+    nginx-dev:
+        image: nginx:1-alpine
+        restart: unless-stopped
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            - ./docker/development/nginx.conf:/etc/nginx/templates/default.conf.template
+            - ./storage/logs/nginx:/var/log/nginx
+            - ./:/usr/share/nginx/html:ro
+        networks:
+            - app-dev-network
+        depends_on:
+            - app-dev
+    db-dev:
+        build:
+            context: .
+            dockerfile: ./docker/development/Dockerfile.sqlite
+        volumes:
+            - ./database:/var/lib/sqlite
+        restart: unless-stopped
+        networks:
+            - app-dev-network
+networks:
+    app-dev-network:
+        driver: bridge
+
+volumes:
+    sqlite-data:
+        driver: local
