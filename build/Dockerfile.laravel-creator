@@ -1,5 +1,7 @@
 FROM php:8.4-cli-alpine
 
+ARG TMP_DIR
+
 RUN apk add --no-cache \
     nodejs \
     npm \
@@ -43,7 +45,8 @@ RUN composer global require laravel/installer && \
 
 ENV PATH="/root/.composer/vendor/bin:${PATH}"
 
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY ${TMP_DIR}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 RUN which laravel && ls -la $(which laravel)
