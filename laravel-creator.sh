@@ -119,7 +119,7 @@ function setup_tmp_laravel_creator() {
 
     echo -e "${BLUE}Building temporary Docker image...${NC}"
     docker build -t "${TMP_IMAGE_NAME}" \
-        --build-arg TMP_DIR="${tmp_laravel_creator_dir}/docker-entrypoint.sh" \
+        --build-arg TMP_DIR="${tmp_laravel_creator_dir}" \
         -f "${tmp_laravel_creator_dir}/Dockerfile.laravel-creator" .
 
     USER_ID=$(id -u)
