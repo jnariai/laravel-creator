@@ -2,6 +2,10 @@ FROM php:8.4-fpm-alpine3.21
 
 WORKDIR /usr/share/nginx/html
 
+# Allow passing host UID/GID at build time to avoid permission issues with bind mounts.
+ARG HOST_UID=1000
+ARG HOST_GID=1000
+
 RUN apk add --no-cache \
     libzip-dev \
     libpng-dev \
@@ -28,9 +32,12 @@ RUN docker-php-ext-install \
     && docker-php-ext-enable redis \
     && apk del $PHPIZE_DEPS
 
-RUN mkdir -p /var/lib/sqlite
-RUN addgroup -g 1000 appgroup && adduser -D -u 1000 -G appgroup appuser
+RUN mkdir -p /var/lib/sqlite \
+    && addgroup -g ${HOST_GID} appgroup \
+    && adduser -D -u ${HOST_UID} -G appgroup appuser
+
 USER appuser
+
 COPY . .
 
 ENTRYPOINT ["/bin/sh", "-c", "./docker/development/entrypoint.sh"]

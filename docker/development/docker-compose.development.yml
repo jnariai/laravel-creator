@@ -3,6 +3,9 @@ services:
         build:
             context: .
             dockerfile: ./docker/development/Dockerfile.app
+            args:
+                HOST_UID: ${HOST_UID:-1000}
+                HOST_GID: ${HOST_GID:-1000}
         restart: unless-stopped
         dns:
             - 8.8.8.8
@@ -22,7 +25,6 @@ services:
             DB_FOREIGN_KEYS: true
         networks:
             - app-dev-network
-        user: "1000:1000"
     nginx-dev:
         image: nginx:1-alpine
         restart: unless-stopped
