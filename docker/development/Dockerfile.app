@@ -28,15 +28,9 @@ RUN docker-php-ext-install \
     && docker-php-ext-enable redis \
     && apk del $PHPIZE_DEPS
 
+RUN mkdir -p /var/lib/sqlite
+RUN addgroup -g 1000 appgroup && adduser -D -u 1000 -G appgroup appuser
+USER appuser
 COPY . .
 
-RUN chmod -R 755 /usr/share/nginx/html/docker/development/entrypoint.sh
-
-RUN mkdir -p /var/lib/sqlite && \
-    chown -R www-data:www-data /var/lib/sqlite && \
-    chmod -R 775 /var/lib/sqlite
-
-RUN chown -R 33:33 /var/lib/sqlite
-
 ENTRYPOINT ["/bin/sh", "-c", "./docker/development/entrypoint.sh"]
-

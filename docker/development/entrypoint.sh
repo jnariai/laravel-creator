@@ -1,20 +1,16 @@
 #!/bin/sh
+set -e
 
-composer install
+composer install --no-interaction --prefer-dist --optimize-autoloader
 npm install
 
-if [ ! -f .env ]; then
-    cp .env.example .env
-    php artisan key:generate
-fi
+[ -f .env ] || (cp .env.example .env && php artisan key:generate)
 
-if [ ! -d storage/framework/views ]; then
-    mkdir -p storage/framework/views
-    chmod -R 775 storage/framework/views
-fi
+mkdir -p storage/framework/views
+mkdir -p storage/framework/cache
+mkdir -p bootstrap/cache
 
-
-php artisan migrate &
-php artisan optimize:clear &
+php artisan migrate
+php artisan optimize:clear
 npm run dev -- --host 0.0.0.0 &
-php-fpm
+exec php-fpm
